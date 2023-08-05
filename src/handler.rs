@@ -109,7 +109,7 @@ async fn register_user_handler(
 
     if exists {
         return HttpResponse::Conflict().json(
-            serde_json::json!({"status": "fail","message": "User with that email already exists"}),
+            serde_json::json!({"status": "fail","message": "A user with that email already exists"}),
         );
     }
 
