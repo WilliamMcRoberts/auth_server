@@ -1,8 +1,9 @@
 use chrono::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 #[allow(non_snake_case)]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct FilteredUser {
     pub id: String,
     pub name: String,

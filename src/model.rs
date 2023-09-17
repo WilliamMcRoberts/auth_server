@@ -1,5 +1,7 @@
+use crate::response::FilteredUser;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize, sqlx::FromRow, Serialize, Clone)]
@@ -24,15 +26,50 @@ pub struct TokenClaims {
     pub exp: usize,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RegisterUserSchema {
     pub name: String,
     pub email: String,
     pub password: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct LoginUserSchema {
     pub email: String,
     pub password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct HealthCheckResponse {
+    pub status: &'static str,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct GetMeResponse {
+    pub status: &'static str,
+    pub data: UserData,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct UserData {
+    pub user: FilteredUser,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct LoginUserResponse {
+    pub status: &'static str,
+    pub token: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct RegisterUserResponse {
+    pub status: &'static str,
+    pub data: UserData,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct Response {
+    pub status: &'static str,
+    pub message: String,
 }

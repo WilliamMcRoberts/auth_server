@@ -43,7 +43,7 @@ async fn main() -> std::io::Result<()> {
     println!("🚀 Server started successfully");
 
     HttpServer::new(move || {
-        let cors = Cors::default()
+        let _cors = Cors::default()
             .allowed_origin("http://localhost:3000")
             .allowed_methods(vec!["GET", "POST"])
             .allowed_headers(vec![
@@ -58,7 +58,7 @@ async fn main() -> std::io::Result<()> {
                 env: config.clone(),
             }))
             .configure(handler::config)
-            .wrap(cors)
+            // .wrap(cors)
             .wrap(Logger::default())
     })
     .bind(("127.0.0.1", 8000))?

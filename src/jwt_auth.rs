@@ -65,6 +65,7 @@ impl FromRequest for JwtMiddleware {
         };
 
         let user_id = uuid::Uuid::parse_str(claims.sub.as_str()).unwrap();
+
         req.extensions_mut()
             .insert::<uuid::Uuid>(user_id.to_owned());
 

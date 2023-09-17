@@ -1,6 +1,9 @@
 use crate::{
     jwt_auth,
-    model::{LoginUserSchema, RegisterUserSchema, TokenClaims, User},
+    model::{
+        GetMeResponse, HealthCheckResponse, LoginUserResponse, LoginUserSchema,
+        RegisterUserResponse, RegisterUserSchema, Response, TokenClaims, User, UserData,
+    },
     response::FilteredUser,
     AppState,
 };
@@ -16,6 +19,14 @@ use chrono::{prelude::*, Duration};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
 use sqlx::Row;
+use utoipa::{
+    openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
+    Modify, OpenApi,
+};
+use utoipa_swagger_ui::SwaggerUi;
+
+use utoipa_rapidoc::RapiDoc;
+use utoipa_redoc::{Redoc, Servable};
 
 fn filter_user_record(user: &User) -> FilteredUser {
     FilteredUser {
@@ -31,16 +42,33 @@ fn filter_user_record(user: &User) -> FilteredUser {
 }
 
 pub fn config(conf: &mut web::ServiceConfig) {
-    let scope = web::scope("/api")
-        .service(health_checker_handler)
+    let openapi = ApiDoc::openapi();
+
+    let base_scope = web::scope("")
+        .service(Redoc::with_url("/redoc", openapi.clone()))
+        .service(RapiDoc::new("/api-docs/openapi.json").path("/rapidoc"))
         .service(register_user_handler)
         .service(login_user_handler)
         .service(logout_handler)
-        .service(get_me_handler);
+        .service(get_me_handler)
+        .service(health_checker_handler)
+        .service(
+            SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
+        );
 
-    conf.service(scope);
+    conf.service(base_scope);
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/login",
+    tag = "Login User Endpoint",
+    request_body(content = LoginUserSchema, description = "Credentials to log in to your account", example = json!({"email": "johndoe@example.com","password": "password123"})),
+    responses(
+        (status = 200, description= "Login User", body = LoginUserResponse),       
+        (status=400, description= "Error", body= Response ),
+    ),
+)]
 #[post("/auth/login")]
 async fn login_user_handler(
     body: web::Json<LoginUserSchema>,
@@ -95,6 +123,16 @@ async fn login_user_handler(
         .json(json!({"status": "success", "token": token}))
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/register",
+    tag = "Register User Endpoint",
+    request_body(content = RegisterUserSchema, description = "Credentials for your new account", example = json!({"name": "John Doe","email": "johndoe@example.com","password": "password123"})),
+    responses(
+        (status = 200, description= "Register User", body = RegisterUserResponse),       
+        (status=400, description= "Error", body= Response ),
+    ),
+)]
 #[post("/auth/register")]
 async fn register_user_handler(
     body: web::Json<RegisterUserSchema>,
@@ -145,6 +183,14 @@ async fn register_user_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/auth/logout",
+    tag = "Logout User Endpoint",
+    responses(
+        (status = 200, description= "Logout Current Logged In User", body = Response),       
+    ),
+)]
 #[get("/auth/logout")]
 async fn logout_handler(_: jwt_auth::JwtMiddleware) -> impl Responder {
     let cookie = Cookie::build("token", "")
@@ -155,9 +201,17 @@ async fn logout_handler(_: jwt_auth::JwtMiddleware) -> impl Responder {
 
     HttpResponse::Ok()
         .cookie(cookie)
-        .json(json!({"status": "success"}))
+        .json(json!({"status": "success", "message": "Successfully logged out"}))
 }
 
+#[utoipa::path(
+    get,
+    path = "/users/me",
+    tag = "Get Authenticated User Endpoint",
+    responses(
+        (status = 200, description= "Get Current Authenticated Filtered User", body = GetMeResponse),       
+    ),
+)]
 #[get("/users/me")]
 async fn get_me_handler(
     req: HttpRequest,
@@ -182,9 +236,52 @@ async fn get_me_handler(
     HttpResponse::Ok().json(json_response)
 }
 
+#[utoipa::path(
+    get,
+    path = "/healthchecker",
+    tag = "Health Checker Endpoint",
+    responses(
+        (status = 200, description= "Authenticated User", body = HealthCheckResponse),       
+    )
+)]
 #[get("/healthchecker")]
 async fn health_checker_handler() -> impl Responder {
     const MESSAGE: &str = "JWT Authentication in Rust using Actix-web, Postgres, and SQLX";
 
     HttpResponse::Ok().json(json!({"status": "success", "message": MESSAGE}))
+}
+
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        health_checker_handler,
+        get_me_handler,
+        login_user_handler,
+        register_user_handler,
+        logout_handler,
+    ),
+    components(
+        schemas(FilteredUser, UserData, HealthCheckResponse, GetMeResponse, LoginUserSchema, LoginUserResponse, RegisterUserSchema, RegisterUserResponse, Response),
+    ),
+    tags(
+        (name = "Rust Auth Server With Actix Web", description = "Authentication in Rust Endpoints")
+    ),
+)]
+struct ApiDoc;
+
+struct SecurityAddon;
+
+impl Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.as_mut().unwrap();
+        components.add_security_scheme(
+            "token",
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        )
+    }
 }
